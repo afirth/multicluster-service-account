@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 KUBECONFIG=kubeconfig-cluster1 kubectl delete -f _out/install.yaml

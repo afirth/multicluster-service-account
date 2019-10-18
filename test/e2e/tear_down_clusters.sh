@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 set -euo pipefail
 
 for CLUSTER in cluster1 cluster2; do
