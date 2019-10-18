@@ -19,6 +19,8 @@ package bootstrap
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"admiralty.io/multicluster-service-account/pkg/apis"
@@ -57,6 +59,8 @@ func Bootstrap(srcCtx, srcKubeconfig, dstCtx, dstKubeconfig string) error {
 		srcCtx = srcCfgRaw.CurrentContext
 	}
 	srcClusterName := srcCfgRaw.Contexts[srcCtx].Cluster
+	srcClusterSafeName := makeDNS1123Compatible(srcClusterName)
+
 	// srcClient, err := client.New(srcCfg, client.Options{})
 	// if err != nil {
 	// 	return err
@@ -82,6 +86,8 @@ func Bootstrap(srcCtx, srcKubeconfig, dstCtx, dstKubeconfig string) error {
 		dstCtx = dstCfgRaw.CurrentContext
 	}
 	dstClusterName := dstCfgRaw.Contexts[dstCtx].Cluster
+	dstClusterSafeName := makeDNS1123Compatible(dstClusterName)
+
 	dstClientset, err := kubernetes.NewForConfig(dstCfg)
 	if err != nil {
 		return err
@@ -135,7 +141,7 @@ func Bootstrap(srcCtx, srcKubeconfig, dstCtx, dstKubeconfig string) error {
 	sa := &corev1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      dstClusterName,
+			Name:      dstClusterSafeName,
 		},
 	}
 	_, err = srcClientset.CoreV1().ServiceAccounts(namespace).Create(sa)
@@ -150,7 +156,7 @@ func Bootstrap(srcCtx, srcKubeconfig, dstCtx, dstKubeconfig string) error {
 
 	crb := &rbacv1.ClusterRoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: dstClusterName,
+			Name: dstClusterSafeName,
 		},
 		RoleRef: rbacv1.RoleRef{
 			Kind: "ClusterRole",
@@ -202,12 +208,12 @@ func Bootstrap(srcCtx, srcKubeconfig, dstCtx, dstKubeconfig string) error {
 	sai := &v1alpha1.ServiceAccountImport{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: namespace,
-			Name:      srcClusterName,
+			Name:      srcClusterSafeName,
 		},
 		Spec: v1alpha1.ServiceAccountImportSpec{
 			ClusterName: srcClusterName,
 			Namespace:   namespace,
-			Name:        dstClusterName,
+			Name:        dstClusterSafeName,
 		},
 	}
 	if err := dstClient.Create(context.TODO(), sai); err != nil {
@@ -267,4 +273,26 @@ func Bootstrap(srcCtx, srcKubeconfig, dstCtx, dstKubeconfig string) error {
 	fmt.Printf("annotated service account import controller in target cluster \"%s\"\n", dstCtx)
 
 	return nil
+}
+
+const (
+	DNS1123NameMaximumLength         = 63
+	DNS1123NotAllowedCharacters      = "[^-a-z0-9]"
+	DNS1123NotAllowedStartCharacters = "^[^a-z0-9]+"
+)
+
+func makeDNS1123Compatible(name string) string {
+	name = strings.ToLower(name)
+
+	nameNotAllowedChars := regexp.MustCompile(DNS1123NotAllowedCharacters)
+	name = nameNotAllowedChars.ReplaceAllString(name, "")
+
+	nameNotAllowedStartChars := regexp.MustCompile(DNS1123NotAllowedStartCharacters)
+	name = nameNotAllowedStartChars.ReplaceAllString(name, "")
+
+	if len(name) > DNS1123NameMaximumLength {
+		name = name[0:DNS1123NameMaximumLength]
+	}
+
+	return name
 }
