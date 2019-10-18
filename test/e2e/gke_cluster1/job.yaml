@@ -7,7 +7,7 @@ spec:
   template:
     metadata:
       annotations:
-        multicluster.admiralty.io/service-account-import.name: cluster2-default-pod-lister
+        multicluster.admiralty.io/service-account-import.name: gkecluster2-default-pod-lister
     spec:
       restartPolicy: Never
       containers:
